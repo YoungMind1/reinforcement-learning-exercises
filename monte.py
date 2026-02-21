@@ -1,4 +1,3 @@
-
 import numpy as np
 import pandas as pd
 import random
@@ -15,14 +14,14 @@ DISCOUNT = 1.0
 EPISODES = 5000
 MAX_EPISODE_LENGTH = 2000
 
-EPSILON = 0.15     # exploration rate
-SEED = 0           # for reproducibility
+EPSILON = 0.15  # exploration rate
+SEED = 0  # for reproducibility
 random.seed(SEED)
 np.random.seed(SEED)
 
 
 # Directions
-DIRS = [(-1,0), (0,1), (1,0), (0,-1)]
+DIRS = [(-1, 0), (0, 1), (1, 0), (0, -1)]
 DIR_NAMES = ["N", "E", "S", "W"]
 
 
@@ -36,13 +35,14 @@ def prev_dir_to_idx(d):
 def load_maze(csv_file):
     grid = pd.read_csv(csv_file, header=None).values
 
-    start = tuple(np.argwhere(grid == 100)[0])
-    goal  = tuple(np.argwhere(grid == 200)[0])
+    # README: 200 is source, 100 is destination
+    start = tuple(np.argwhere(grid == 200)[0])
+    goal = tuple(np.argwhere(grid == 100)[0])
 
     # Only allow movement on:
-    # 2, 100, 200
+    # 1, 2, 100, 200
     # Everything else becomes wall (0)
-    grid = np.where(np.isin(grid, [2,100,200]), 1, 0)
+    grid = np.where(np.isin(grid, [1, 2, 100, 200]), 1, 0)
     return grid, start, goal
 
 
@@ -64,17 +64,15 @@ def neighbors(r, c, grid):
 #  direction: -1 means "no previous direction"
 # ====================================
 def monte_carlo_control(grid, start, goal):
-
     rows, cols = grid.shape
 
-    # Value function
+    # We learn expected return (negative cost); initialize pessimistically
     V = np.zeros((rows, cols, 5))
 
     # Counts for incremental mean updates
     N = np.zeros((rows, cols, 5)) + 1e-9
 
     for ep in range(EPISODES):
-
         # ===============================
         # Generate an episode
         # ===============================
@@ -83,37 +81,44 @@ def monte_carlo_control(grid, start, goal):
         prev_dir = -1
 
         for t in range(MAX_EPISODE_LENGTH):
-
             # If goal reached, episode ends
             if (r, c) == goal:
                 episode.append(((r, c, prev_dir), 0))
                 break
 
-            # Choose action ε-greedily
+            moves = list(neighbors(r, c, grid))
+            if not moves:
+                break
+
+            # Choose action ε-greedily (maximize expected return)
             if random.random() < EPSILON:
                 # explore
-                possible_moves = list(neighbors(r, c, grid))
-                nr, nc, new_dir = random.choice(possible_moves)
+                nr, nc, new_dir = random.choice(moves)
             else:
-                # greedy wrt V
+                # greedy wrt V (pick max return)
                 best = None
-                best_val = +1e9
-                for nr, nc, new_dir in neighbors(r, c, grid):
-
+                best_val = -1e18
+                for nr, nc, new_dir in moves:
                     step_cost = COST_PER_STEP
                     if prev_dir != -1 and prev_dir != new_dir:
                         step_cost += COST_PER_TURN
 
-                    val = step_cost + V[nr, nc, new_dir]
+                    reward = -step_cost
+                    val = reward + DISCOUNT * V[nr, nc, new_dir]
 
-                    if val < best_val:
+                    if val > best_val:
                         best_val = val
                         best = (nr, nc, new_dir)
 
+                if best is None:
+                    break
                 nr, nc, new_dir = best
 
             # reward is negative cost
-            reward = -(COST_PER_STEP + (COST_PER_TURN if prev_dir != -1 and prev_dir != new_dir else 0))
+            reward = -(
+                COST_PER_STEP
+                + (COST_PER_TURN if prev_dir != -1 and prev_dir != new_dir else 0)
+            )
 
             # store transition
             episode.append(((r, c, prev_dir), reward))
@@ -125,7 +130,7 @@ def monte_carlo_control(grid, start, goal):
         # Monte Carlo return calculation
         # ===============================
         G = 0
-        for (state, reward) in reversed(episode):
+        for state, reward in reversed(episode):
             (sr, sc, sd) = state
             G = reward + DISCOUNT * G
 
@@ -141,26 +146,32 @@ def monte_carlo_control(grid, start, goal):
 #  EXTRACT BEST PATH GREEDILY
 # ====================================
 def extract_path(V, grid, start, goal):
-
     r, c = start
     prev_dir = -1
     path = []
 
+    max_len = int(grid.size * 4)
+    seen = set()
+
     while (r, c) != goal:
-        path.append(((r,c), DIR_NAMES[prev_dir] if prev_dir != -1 else "Start"))
+        if len(path) > max_len or (r, c, prev_dir) in seen:
+            raise RuntimeError("Policy got stuck in a loop.")
+        seen.add((r, c, prev_dir))
+
+        path.append(((r, c), DIR_NAMES[prev_dir] if prev_dir != -1 else "Start"))
 
         best = None
-        best_val = +1e9
+        best_val = -1e18
 
         for nr, nc, new_dir in neighbors(r, c, grid):
-
-            cost = COST_PER_STEP
+            step_cost = COST_PER_STEP
             if prev_dir != -1 and prev_dir != new_dir:
-                cost += COST_PER_TURN
+                step_cost += COST_PER_TURN
+            reward = -step_cost
 
-            val = cost + V[nr, nc, new_dir]
+            val = reward + DISCOUNT * V[nr, nc, new_dir]
 
-            if val < best_val:
+            if val > best_val:
                 best_val = val
                 best = (nr, nc, new_dir)
 
@@ -169,7 +180,7 @@ def extract_path(V, grid, start, goal):
 
         r, c, prev_dir = best
 
-    path.append(((r,c), "GOAL"))
+    path.append(((r, c), "GOAL"))
     return path
 
 
@@ -183,8 +194,8 @@ def plot_path(grid, path):
     xs = [p[0][1] for p in path]
 
     plt.plot(xs, ys, linewidth=3)
-    plt.scatter([xs[0]],[ys[0]], c="green", s=200, marker="o", label="Start")
-    plt.scatter([xs[-1]],[ys[-1]], c="red", s=200, marker="X", label="Goal")
+    plt.scatter([xs[0]], [ys[0]], c="green", s=200, marker="o", label="Start")
+    plt.scatter([xs[-1]], [ys[-1]], c="red", s=200, marker="X", label="Goal")
     plt.grid()
     plt.legend()
     plt.title("Monte Carlo RL Path")
@@ -195,25 +206,22 @@ def plot_path(grid, path):
 #  MAIN
 # ====================================
 if __name__ == "__main__":
-
     grid, start, goal = load_maze("matrix_path.csv")
-    
 
     V = monte_carlo_control(grid, start, goal)
     path = extract_path(V, grid, start, goal)
 
     steps = len(path) - 1
-    turns = sum(1 for i in range(2, len(path))
-                if path[i-1][1] != path[i][1])
+    turns = sum(1 for i in range(2, len(path)) if path[i - 1][1] != path[i][1])
 
-    total_cost = steps*COST_PER_STEP + turns*COST_PER_TURN
+    total_cost = steps * COST_PER_STEP + turns * COST_PER_TURN
 
     print("======== Monte Carlo RL Path ========")
     print("Steps :", steps)
     print("Turns :", turns)
     print("Total Cost:", total_cost)
     print("\nFirst 10:")
-    for i,p in enumerate(path[:10]):
-        print(f"{i+1}. {p}")
+    for i, p in enumerate(path[:10]):
+        print(f"{i + 1}. {p}")
 
     plot_path(grid, path)

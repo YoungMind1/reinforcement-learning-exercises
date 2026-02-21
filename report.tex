@@ -1,0 +1,206 @@
+% Persian report for reinforcement-learning exercise 1
+% Compile with XeLaTeX
+\documentclass[12pt,a4paper]{article}
+
+\usepackage{geometry}
+\geometry{margin=2.2cm}
+
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage{amsmath}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true,linkcolor=blue,urlcolor=blue,citecolor=blue}
+
+\usepackage{xepersian}
+\settextfont{B Nazanin}
+\setlatintextfont{Latin Modern Roman}
+
+% Avoid missing bullet glyph in Persian fonts
+\renewcommand{\labelitemi}{-}
+\renewcommand{\labelitemii}{-}
+
+\title{حل مسیر در ماز با روش‌های یادگیری تقویتی و برنامه‌ریزی پویا}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section{صورت مسئله و داده}
+هدف، یافتن مسیر از مبدا به مقصد در ماز ذخیره‌شده در فایل \lr{matrix\_path.csv} است:
+\begin{itemize}
+  \item مقدار \lr{200} مبدا و \lr{100} مقصد است.
+  \item مقادیر \lr{1} و \lr{2} سلول‌های قابل عبور هستند (به ترتیب «قابل‌مشاهده/قابل‌بازدید» و «بازدیدشده»).
+  \item مقدار \lr{0} دیوار است.
+\end{itemize}
+
+برای ارزیابی، هزینه‌ی حرکت به صورت زیر تعریف شد:
+\begin{align}	
+\mathrm{Cost} = \#\mathrm{steps} \cdot c_{\mathrm{step}} + \#\mathrm{turns} \cdot c_{\mathrm{turn}}, \nonumber
+\end{align}
+که در آن \lr{turn} یعنی تغییر جهت حرکت نسبت به قدم قبلی. \\
+
+در این پروژه، برای صحت‌سنجی، یک ارزیاب مستقل اضافه شد که:
+\begin{itemize}
+  \item مسیر بهینه را با \lr{Dijkstra} محاسبه می‌کند (به عنوان مرجع دقیق).
+  \item همگرایی \lr{Value Iteration} و همچنین کیفیت خروجی روش‌های یادگیری را با این مرجع مقایسه می‌کند.
+\end{itemize}
+
+\section{مدل‌ها}
+پنج روش زیر مقایسه شدند:
+\begin{itemize}
+  \item \textbf{مرجع دقیق:} \lr{Dijkstra} (کوتاه‌ترین مسیر روی فضای حالت جهت‌دار).
+  \item \textbf{برنامه‌ریزی پویا:} \lr{Value Iteration} برای هزینه تا هدف.
+  \item \lr{\textbf{Q-learning:}} روش \lr{off-policy TD} که از ماکزیمم $Q$ حالت بعدی استفاده می‌کند.
+  \item \lr{\textbf{SARSA:}} روش \lr{on-policy TD} که از عمل واقعی انتخاب‌شده در حالت بعدی استفاده می‌کند.
+  \item \lr{\textbf{Monte Carlo Control:}} یادگیری از اپیزودهای کامل با استفاده از \lr{exploring starts}.
+\end{itemize}
+
+\subsection{تفاوت \lr{Q-learning} و \lr{SARSA}}
+\begin{itemize}
+  \item \textbf{\lr{Q-learning (off-policy):}} هدف \lr{TD} به صورت $r + \gamma \max_a Q(s',a)$ محاسبه می‌شود. این روش سیاست بهینه را یاد می‌گیرد حتی اگر رفتار فعلی اکتشافی باشد.
+  \item \textbf{\lr{SARSA (on-policy):}} هدف \lr{TD} به صورت $r + \gamma Q(s',a')$ است که $a'$ عمل واقعی انتخاب‌شده (با \lr{$\varepsilon$-greedy}) در $s'$ است. این روش سیاست رفتاری را یاد می‌گیرد.
+\end{itemize}
+
+\section{تنظیمات آزمایش}
+آزمایش‌ها با چند \lr{seed} انجام شد و معیار «رسیدن پایدار به بهینه» به صورت زیر تعریف شد:
+\begin{itemize}
+  \item هزینه مرجع: هزینه‌ی بهینه \lr{$C^*$} از \lr{Dijkstra}.
+  \item آستانه: \lr{1\%} خطا یعنی \lr{$C \le 1.01\,C^*$}.
+  \item پایداری: برقرار بودن آستانه به مدت \lr{150} اپیزود متوالی.
+\end{itemize}
+
+پارامترهای اصلی (مطابق \lr{out/summary.json}):
+\begin{itemize}
+  \item تعداد اپیزود برای \lr{TD}: \lr{12,000}؛ برای \lr{MC}: \lr{30,000}
+  \item \lr{max\_episode\_len=2000}
+  \item \lr{epsilon=0.15}
+  \item \lr{alpha=0.1} (برای روش‌های \lr{TD})
+\end{itemize}
+
+\section{تغییر ثابت‌ها و اثر آن‌ها}
+برای مشاهده‌ی اثر «هزینه‌ی پیچیدن»، سه مقدار زیر برای \lr{$c_{turn}$} استفاده شد:
+\begin{center}
+\lr{$c_{turn} \in \{0, 10, 100\}$} \qquad و \qquad \lr{$c_{step}=1$}
+\end{center}
+انتظار می‌رود با افزایش \lr{$c_{turn}$}، مسیرها تمایل بیشتری به صاف‌بودن (کمتر شدن تعداد پیچ‌ها) داشته باشند؛ این در نتایج نیز دیده می‌شود.
+
+\section{نتایج عددی}
+جدول \ref{tab:results} خلاصه‌ی عملکرد را نشان می‌دهد.
+
+\begin{table}[H]
+\centering
+\caption{مقایسه‌ی روش‌ها برای هزینه‌های مختلف پیچ}
+\label{tab:results}
+\begin{tabular}{@{}lrrrrrrr@{}}
+\toprule
+\textbf{$c_{turn}$} & \textbf{$C^*$} & \textbf{\lr{VI cost}} & \textbf{\lr{VI iters}} & \textbf{\lr{Q-learn hit}} & \textbf{\lr{SARSA hit}} & \textbf{\lr{MC best}} \\
+\midrule
+0   & 39  & 39  & 40 & 3221 & 5471 & $\infty$ \\
+10  & 109 & 109 & 56 & 2011 & 4601 & 331 \\
+100 & 739 & 739 & 67 & 5811 & 5211 & $\infty$ \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.4em}
+\footnotesize
+\textbf{توضیح:} «\lr{hit}» = اپیزود رسیدن پایدار به جواب بهینه (میانه روی ۳ \lr{seed}). «\lr{MC best}» = بهترین هزینه‌ای که \lr{MC} در ۳۰۰۰۰ اپیزود به آن رسید.
+\end{table}
+
+\subsection{مقایسه \lr{Q-learning} و \lr{SARSA}}
+\begin{itemize}
+  \item هر دو روش \lr{TD} در تمام حالت‌ها به جواب بهینه رسیدند (\lr{hit\_rate=100\%}).
+  \item \textbf{\lr{Q-learning}} معمولاً سریع‌تر همگرا شد (میانه‌ی اپیزود رسیدن کمتر).
+  \item \textbf{\lr{SARSA}} به دلیل \lr{on-policy} بودن، محافظه‌کارتر یاد می‌گیرد و کمی کندتر به بهینه می‌رسد، اما نهایتاً به همان جواب می‌رسد.
+\end{itemize}
+
+\subsection{چرا \lr{Monte Carlo} همگرا نشد؟}
+\begin{itemize}
+  \item \lr{MC} فقط از اپیزودهایی که به هدف می‌رسند یاد می‌گیرد.
+  \item در این ماز، رسیدن تصادفی به هدف بسیار نادر است (حتی با \lr{exploring starts}).
+  \item حتی با ۳۰۰۰۰ اپیزود و شروع‌های تصادفی نزدیک هدف، مقادیر $Q$ برای حالت‌های نزدیک مبدا به اندازه کافی به‌روز نشدند.
+  \item نتیجه: سیاست حریصانه استخراج‌شده در لوپ گیر می‌کند.
+  \item \textbf{درس:} روش‌های \lr{TD} (\lr{Q-learning}/\lr{SARSA}) در محیط‌های با پاداش پراکنده بسیار کاراتر از \lr{MC} هستند.
+\end{itemize}
+
+\section{نمودارها و تصاویر مسیر}
+\subsection{همگرایی \lr{Value Iteration}}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\linewidth]{fig/vi_delta_turn0.png}
+\caption{کاهش \lr{delta} در \lr{Value Iteration} برای \lr{$c_{turn}=0$}}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\linewidth]{fig/vi_delta_turn10.png}
+\caption{کاهش \lr{delta} در \lr{Value Iteration} برای \lr{$c_{turn}=10$}}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\linewidth]{fig/vi_delta_turn100.png}
+\caption{کاهش \lr{delta} در \lr{Value Iteration} برای \lr{$c_{turn}=100$}}
+\end{figure}
+
+\subsection{منحنی یادگیری (\lr{Q-learning}, \lr{SARSA}, \lr{MC})}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\linewidth]{fig/learning_turn0.png}
+\caption{منحنی یادگیری (میانه روی \lr{seed}ها) برای \lr{$c_{turn}=0$}}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\linewidth]{fig/learning_turn10.png}
+\caption{منحنی یادگیری (میانه روی \lr{seed}ها) برای \lr{$c_{turn}=10$}}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\linewidth]{fig/learning_turn100.png}
+\caption{منحنی یادگیری (میانه روی \lr{seed}ها) برای \lr{$c_{turn}=100$}}
+\end{figure}
+
+\subsection{مقایسه مسیرهای نهایی}
+در هر حالت، مسیر بهینه (مرجع)، مسیر \lr{Value Iteration}، مسیر \lr{Q-learning} و مسیر \lr{SARSA} رسم شده‌اند.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.24\linewidth]{fig/path_opt_turn0.png}
+\includegraphics[width=0.24\linewidth]{fig/path_vi_turn0.png}
+\includegraphics[width=0.24\linewidth]{fig/path_td_turn0.png}
+\includegraphics[width=0.24\linewidth]{fig/path_sarsa_turn0.png}
+\caption{مسیرها برای \lr{$c_{turn}=0$}: (از چپ) بهینه، \lr{VI}، \lr{Q-learning}، \lr{SARSA}}
+\end{figure}
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=0.24\linewidth]{fig/path_opt_turn10.png}
+	\includegraphics[width=0.24\linewidth]{fig/path_vi_turn10.png}
+	\includegraphics[width=0.24\linewidth]{fig/path_td_turn10.png}
+	\includegraphics[width=0.24\linewidth]{fig/path_sarsa_turn10.png}
+	\caption{مسیرها برای \lr{$c_{turn}=10$}: (از چپ) بهینه، \lr{VI}، \lr{Q-learning}، \lr{SARSA}}
+\end{figure}
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=0.24\linewidth]{fig/path_opt_turn100.png}
+	\includegraphics[width=0.24\linewidth]{fig/path_vi_turn100.png}
+	\includegraphics[width=0.24\linewidth]{fig/path_td_turn100.png}
+	\includegraphics[width=0.24\linewidth]{fig/path_sarsa_turn100.png}
+	\caption{مسیرها برای \lr{$c_{turn}=100$}: (از چپ) بهینه، \lr{VI}، \lr{Q-learning}، \lr{SARSA}}
+\end{figure}
+
+
+\section{بحث و جمع‌بندی}
+\begin{itemize}
+  \item \textbf{درستی:} خروجی \lr{Value Iteration} از نظر هزینه با مرجع دقیق \lr{Dijkstra} برابر شد (برای هر سه مقدار \lr{$c_{turn}$}). این نشان می‌دهد مدل \lr{DP} صحیح پیاده‌سازی شده است.
+  \item \textbf{سرعت همگرایی \lr{VI}:} \lr{Value Iteration} در حدود ده‌ها تکرار همگرا شد (۴۰ تا ۶۷ تکرار بسته به \lr{$c_{turn}$}).
+  \item \textbf{\lr{Q-learning} در برابر \lr{SARSA}:} هر دو به جواب بهینه رسیدند. \lr{Q-learning} به دلیل \lr{off-policy} بودن معمولاً سریع‌تر همگرا شد. \lr{SARSA} کمی محافظه‌کارتر است اما در این محیط تفاوت چندانی ندارد.
+  \item \textbf{\lr{MC}:} حتی با ۳۰۰۰۰ اپیزود و \lr{exploring starts} به سیاست بهینه نرسید. این نشان‌دهنده‌ی ضعف \lr{MC} در محیط‌های با پاداش پراکنده است.
+\end{itemize}
+
+
+\end{document}

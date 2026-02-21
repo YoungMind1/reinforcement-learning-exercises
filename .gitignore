@@ -8,3 +8,11 @@ wheels/
 
 # Virtual environments
 .venv
+
+out
+fig
+report.log
+report.pdf
+report.aux
+report.out
+report.synctex.gz

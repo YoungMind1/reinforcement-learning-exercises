@@ -25,13 +25,14 @@ def load_maze(csv_file):
     grid = pd.read_csv(csv_file, header=None).values
 
     # identify start and goal
-    start = tuple(np.argwhere(grid == 100)[0])
-    goal = tuple(np.argwhere(grid == 200)[0])
+    # README: 200 is source, 100 is destination
+    start = tuple(np.argwhere(grid == 200)[0])
+    goal = tuple(np.argwhere(grid == 100)[0])
 
     # only treat:
-    # 2, 100, 200 as valid (traversable)
+    # 1, 2, 100, 200 as valid (traversable)
     # everything else is wall (=0)
-    grid = np.where(np.isin(grid, [2, 100, 200]), 1, 0)
+    grid = np.where(np.isin(grid, [1, 2, 100, 200]), 1, 0)
 
     return grid, start, goal
 
@@ -54,7 +55,7 @@ def neighbors(r, c, grid):
 #  direction stores the direction we entered from:
 #   –1 means "no previous direction"
 # ================================
-def run_value_iteration(grid, start, goal):
+def run_value_iteration(grid, start, goal, *, return_deltas=False):
     rows, cols = grid.shape
 
     # 3D Value table:
@@ -66,6 +67,8 @@ def run_value_iteration(grid, start, goal):
     for d in range(5):
         V[goal][d] = 0
 
+    deltas = []
+    iters = 0
     for it in range(MAX_ITER):
         delta = 0
 
@@ -94,11 +97,16 @@ def run_value_iteration(grid, start, goal):
                             best = val
 
                     V[r, c, prev_dir_to_idx(prev_dir)] = best
-                    delta = max(delta, abs(V_old - best))
+                    if np.isfinite(V_old) and np.isfinite(best):
+                        delta = max(delta, abs(V_old - best))
 
+        deltas.append(delta)
+        iters = it + 1
         if delta < TOL:
             break
 
+    if return_deltas:
+        return V, iters, deltas
     return V
 
 
